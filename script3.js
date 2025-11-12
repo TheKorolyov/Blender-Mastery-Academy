@@ -13,11 +13,166 @@ function App() {
     const [selectedPlan, setSelectedPlan] = useState(null);
     const [showPlanDetails, setShowPlanDetails] = useState(null);
     const [purchasedPlans, setPurchasedPlans] = useState({});
-    const [users, setUsers] = useState({ admin: "j2wEUHNcyj5X0Z5Mz9XD" });
+    const [users, setUsers] = useState({});
     const [error, setError] = useState("");
     const [showTask, setShowTask] = useState(null);
     const [showFreePresentation, setShowFreePresentation] = useState(false);
     const [showPresentationSlides, setShowPresentationSlides] = useState(null);
+    const [darkMode, setDarkMode] = useState(false);
+    const [userProfileImages, setUserProfileImages] = useState({});
+    const [loading, setLoading] = useState(true);
+
+    // 🔥 INICIALIZACE - Načti z Firebase
+    useEffect(() => {
+        const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+        setDarkMode(savedDarkMode);
+        if (savedDarkMode) {
+            document.body.classList.add('dark-mode');
+        }
+        
+        // Načti všechny uživatele z Firebase
+        if (window.db) {
+            window.db.ref('users').once('value').then((snapshot) => {
+                if (snapshot.exists()) {
+                    const allUsers = snapshot.val();
+                    const usersObj = {};
+                    Object.keys(allUsers).forEach(username => {
+                        usersObj[username] = allUsers[username].password || '';
+                    });
+                    setUsers(usersObj);
+                }
+                setLoading(false);
+            }).catch(error => {
+                console.error("Chyba při načítání uživatelů:", error);
+                setLoading(false);
+            });
+        } else {
+            setLoading(false);
+        }
+    }, []);
+
+    // Načti profil při přihlášení
+    useEffect(() => {
+        if (window.db && currentUser && isLoggedIn) {
+            window.db.ref(`users/${currentUser}/profile`).on('value', (snapshot) => {
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    if (data.profileImage) {
+                        setUserProfileImages(prev => ({
+                            ...prev,
+                            [currentUser]: data.profileImage
+                        }));
+                    }
+                }
+            });
+
+            // Načti nákupy
+            window.db.ref(`users/${currentUser}/purchases`).once('value', (snapshot) => {
+                if (snapshot.exists()) {
+                    const purchasesData = snapshot.val();
+                    const purchasesArray = Object.values(purchasesData);
+                    setPurchasedPlans(prev => ({
+                        ...prev,
+                        [currentUser]: purchasesArray
+                    }));
+                }
+            });
+        }
+    }, [currentUser, isLoggedIn]);
+
+    const toggleDarkMode = () => {
+        const newDarkMode = !darkMode;
+        setDarkMode(newDarkMode);
+        localStorage.setItem('darkMode', newDarkMode);
+        
+        if (newDarkMode) {
+            document.body.classList.add('dark-mode');
+        } else {
+            document.body.classList.remove('dark-mode');
+        }
+    };
+
+    // 📝 REGISTRACE - Uloží ONLINE do Firebase
+    const handleRegister = (e) => {
+        e.preventDefault();
+        setError("");
+        if (username && password) {
+            if (users[username]) {
+                setError("Uživatelské jméno již existuje.");
+            } else if (window.db) {
+                // Uložit do Firebase ONLINE
+                window.db.ref(`users/${username}`).set({
+                    password: btoa(password), // Base64 encoding
+                    email: username + "@blender.local",
+                    createdAt: new Date().toISOString(),
+                    profile: {
+                        username: username
+                    }
+                }).then(() => {
+                    setUsers((prev) => ({ ...prev, [username]: password }));
+                    setIsLoggedIn(true);
+                    setCurrentUser(username);
+                    setShowWelcome(true);
+                    setUsername("");
+                    setPassword("");
+                    setShowLogin(false);
+                    setMenuOpen(false);
+                }).catch((error) => {
+                    setError("❌ Chyba: " + error.message);
+                });
+            }
+        } else {
+            setError("Vyplňte všechna pole.");
+        }
+    };
+
+    // 🔐 PŘIHLÁŠENÍ - Ověří v Firebase
+    const handleLogin = (e) => {
+        e.preventDefault();
+        setError("");
+        if (username && password) {
+            if (users[username] && atob(users[username]) === password) {
+                setIsAdmin(username === "admin");
+                setIsLoggedIn(true);
+                setCurrentUser(username);
+                setShowWelcome(true);
+                setUsername("");
+                setPassword("");
+                setShowLogin(false);
+                setMenuOpen(false);
+            } else {
+                setError("❌ Nesprávné uživatelské jméno nebo heslo.");
+            }
+        } else {
+            setError("Vyplňte všechna pole.");
+        }
+    };
+
+    // 📷 UPLOAD PROFILOVÉHO OBRÁZKU - Uloží ONLINE do Firebase
+    const handleProfileImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const imageData = reader.result;
+                setUserProfileImages(prev => ({
+                    ...prev,
+                    [currentUser]: imageData
+                }));
+                
+                // Uloží do Firebase Storage + Realtime DB
+                if (window.db && currentUser) {
+                    window.db.ref(`users/${currentUser}/profile`).update({
+                        profileImage: imageData,
+                        updatedAt: new Date().toISOString()
+                    }).catch((error) => {
+                        console.error("❌ Chyba:", error);
+                    });
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
     const plans = [
         {
@@ -113,53 +268,24 @@ function App() {
         slidesUrl: "https://docs.google.com/presentation/d/e/2PACX-1vTAvUPUFFxmc4pqoTxwUzZrzqW9H5HGea9jWHKy9HD8PQp2Xg-sOOi0Iiqfuq2eqCwTqOe2zl-vEE8f/embed?start=false&loop=false&delayms=60000"
     };
 
-    const handleLogin = (e) => {
-        e.preventDefault();
-        setError("");
-        if (username && password) {
-            if (username === "admin" && password === "j2wEUHNcyj5X0Z5Mz9XD") {
-                setIsAdmin(true);
-                setIsLoggedIn(true);
-                setCurrentUser("admin");
-                setShowWelcome(true);
-                setUsername("");
-                setPassword("");
-                setShowLogin(false);
-                setMenuOpen(false);
-            } else if (users[username] && users[username] === password) {
-                setIsLoggedIn(true);
-                setCurrentUser(username);
-                setShowWelcome(true);
-                setUsername("");
-                setPassword("");
-                setShowLogin(false);
-                setMenuOpen(false);
-            } else {
-                setError("Nesprávné uživatelské jméno nebo heslo.");
-            }
-        } else {
-            setError("Vyplňte všechna pole.");
-        }
-    };
-
-    const handleRegister = (e) => {
-        e.preventDefault();
-        setError("");
-        if (username && password) {
-            if (users[username]) {
-                setError("Uživatelské jméno již existuje.");
-            } else {
-                setUsers((prev) => ({ ...prev, [username]: password }));
-                setIsLoggedIn(true);
-                setCurrentUser(username);
-                setShowWelcome(true);
-                setUsername("");
-                setPassword("");
-                setShowLogin(false);
-                setMenuOpen(false);
-            }
-        } else {
-            setError("Vyplňte všechna pole.");
+    // 💳 NÁKUP - Uloží ONLINE do Firebase
+    const confirmPurchase = () => {
+        if (window.db && currentUser && selectedPlan) {
+            window.db.ref(`users/${currentUser}/purchases`).push({
+                planId: selectedPlan.id,
+                planName: selectedPlan.name,
+                price: selectedPlan.price,
+                purchasedAt: new Date().toISOString()
+            }).then(() => {
+                setPurchasedPlans((prev) => ({
+                    ...prev,
+                    [currentUser]: [...(prev[currentUser] || []), selectedPlan]
+                }));
+                alert(`✅ Děkujeme za zakoupení plánu ${selectedPlan.name}!`);
+                setSelectedPlan(null);
+            }).catch((error) => {
+                alert("❌ Chyba při ukládání: " + error.message);
+            });
         }
     };
 
@@ -177,8 +303,11 @@ function App() {
     };
 
     const scrollToSection = (id) => {
-        document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
-        setMenuOpen(false);
+        const element = document.getElementById(id);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth' });
+            setMenuOpen(false);
+        }
     };
 
     const toggleMenu = () => {
@@ -195,15 +324,6 @@ function App() {
 
     const handlePurchase = (plan) => {
         setSelectedPlan(plan);
-    };
-
-    const confirmPurchase = () => {
-        setPurchasedPlans((prev) => ({
-            ...prev,
-            [currentUser]: [...(prev[currentUser] || []), selectedPlan]
-        }));
-        alert(`Děkujeme za zakoupení plánu ${selectedPlan.name}!`);
-        setSelectedPlan(null);
     };
 
     const cancelPurchase = () => {
@@ -277,36 +397,75 @@ function App() {
         );
     }
 
+    if (loading) {
+        return <div style={{ textAlign: 'center', padding: '2rem', marginTop: '50vh', transform: 'translateY(-50%)' }}>
+            <h2>⏳ Načítání dat z Firebase...</h2>
+        </div>;
+    }
+
     return (
         <div>
+            <button className="dark-mode-toggle" onClick={toggleDarkMode}>
+                {darkMode ? '☀️' : '🌙'}
+            </button>
+
             {isLoggedIn && showWelcome && !selectedPlan && !showPlanDetails && !showTask && !showPresentationSlides ? (
                 <div className="welcome-section">
-                    <h1>Vítejte, {currentUser}!</h1>
-                    <p className="subtitle">Jste přihlášeni do Blender Mastery Academy. Prozkoumejte naše kurzy nebo spravujte svůj účet.</p>
+                    <div className="profile-header">
+                        <div className="profile-image-container">
+                            {userProfileImages[currentUser] ? (
+                                <img 
+                                    src={userProfileImages[currentUser]} 
+                                    alt="Profil" 
+                                    className="profile-image"
+                                />
+                            ) : (
+                                <div className="profile-image-placeholder">
+                                    👤
+                                </div>
+                            )}
+                            <label className="profile-image-upload">
+                                <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    onChange={handleProfileImageUpload}
+                                    hidden
+                                />
+                                <span className="upload-icon">📷</span>
+                            </label>
+                        </div>
+                        <div className="profile-info">
+                            <h1>Vítejte, {currentUser}!</h1>
+                            <p className="profile-subtitle">Jste přihlášeni do Blender Mastery Academy</p>
+                        </div>
+                    </div>
+
+                    <p className="subtitle" style={{ marginTop: '1.5rem', marginBottom: '2rem' }}>
+                        Prozkoumejte naše kurzy nebo spravujte svůj účet.
+                    </p>
+
                     {isAdmin ? (
-                        <div>
+                        <div className="admin-panel">
                             <h2>Admin Panel</h2>
                             <p>Zde můžete spravovat kurzy a uživatele (funkce připravena pro budoucí rozšíření).</p>
                         </div>
                     ) : (
                         <>
-                            <p>Vyberte si jeden z našich plánů a začněte svou cestu s Blenderem!</p>
+                            <p style={{ marginBottom: '2rem' }}>Vyberte si jeden z našich plánů a začněte svou cestu s Blenderem!</p>
                             <div className="purchased-plans">
                                 <h2 className="section-title">Vaše zakoupené plány</h2>
                                 {purchasedPlans[currentUser] && purchasedPlans[currentUser].length > 0 ? (
                                     purchasedPlans[currentUser].map((plan, index) => (
                                         <div key={index} className="purchased-plan-card">
-                                            <h3>{plan.name}</h3>
+                                            <h3>{plan.planName}</h3>
                                             <p><strong>Cena:</strong> {plan.price}</p>
-                                            <ul>
-                                                {plan.features.map((feature, i) => (
-                                                    <li key={i}>{feature}</li>
-                                                ))}
-                                            </ul>
+                                            <p><strong>Zakoupeno:</strong> {new Date(plan.purchasedAt).toLocaleDateString('cs-CZ')}</p>
                                         </div>
                                     ))
                                 ) : (
-                                    <p>Zatím jste si žádný plán nezakoupili.</p>
+                                    <p style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-light)' }}>
+                                        ℹ️ Zatím jste si žádný plán nezakoupili. Vraťte se na domovskou stránku.
+                                    </p>
                                 )}
                             </div>
                             <div className="lessons">
@@ -314,7 +473,7 @@ function App() {
                                 {purchasedPlans[currentUser] && purchasedPlans[currentUser].length > 0 ? (
                                     <div className="lessons-grid">
                                         {lessons
-                                            .filter((lesson) => purchasedPlans[currentUser].some((plan) => plan.id === lesson.planId))
+                                            .filter((lesson) => purchasedPlans[currentUser].some((plan) => plan.planId === lesson.planId))
                                             .map((lesson) => (
                                                 <div key={lesson.id} className="lesson-card">
                                                     <h3 className="lesson-title">{lesson.title}</h3>
@@ -331,17 +490,21 @@ function App() {
                                             ))}
                                     </div>
                                 ) : (
-                                    <p>Pro přístup k lekcím si zakupte některý z plánů.</p>
+                                    <p style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-light)' }}>
+                                        Pro přístup k lekcím si zakupte některý z plánů.
+                                    </p>
                                 )}
                             </div>
                         </>
                     )}
-                    <button className="cta-button" style={{ margin: '20px' }} onClick={goToHome}>
-                        Přejít na domovskou stránku
-                    </button>
-                    <button className="cta-button" style={{ margin: '20px' }} onClick={handleLogout}>
-                        Odhlásit se
-                    </button>
+                    <div className="profile-actions">
+                        <button className="cta-button" onClick={goToHome}>
+                            Přejít na domovskou stránku
+                        </button>
+                        <button className="cta-button logout-button" onClick={handleLogout}>
+                            Odhlásit se
+                        </button>
+                    </div>
                 </div>
             ) : selectedPlan ? (
                 <div className="purchase-dialog">
@@ -351,10 +514,10 @@ function App() {
                     <p className="subtitle">Opravdu chcete zakoupit tento plán?</p>
                     <div className="flex justify-between mt-6">
                         <button className="cta-button" onClick={confirmPurchase}>
-                            Potvrdit
+                            ✅ Potvrdit
                         </button>
-                        <button className="cta-button bg-gray-500 hover:bg-gray-600" onClick={cancelPurchase}>
-                            Zrušit
+                        <button className="cta-button" style={{ backgroundColor: '#666' }} onClick={cancelPurchase}>
+                            ❌ Zrušit
                         </button>
                     </div>
                 </div>
@@ -374,13 +537,13 @@ function App() {
                             ))}
                         </ul>
                         <h3>Ukázky z kurzu:</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
                             {showPlanDetails.images.map((img, index) => (
                                 <img
                                     key={index}
                                     src={img}
                                     alt={`Ukázka ${showPlanDetails.name} ${index + 1}`}
-                                    className="w-full h-48 object-cover rounded-lg"
+                                    style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px' }}
                                 />
                             ))}
                         </div>
@@ -435,26 +598,34 @@ function App() {
             ) : showLogin ? (
                 <div className="login-form">
                     <h2 className="section-title">{isRegistering ? "Registrace" : "Přihlášení"}</h2>
+                    <p style={{ textAlign: 'center', color: 'var(--text-light)', marginBottom: '1.5rem', fontSize: '0.95rem' }}>
+                        {isRegistering 
+                            ? "Vytvořte si nový účet a začněte učit se"
+                            : "Přihlaste se ke svému účtu"
+                        }
+                    </p>
                     <div className="space-y-4">
-                        <input
-                            type="text"
-                            placeholder="Uživatelské jméno"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            className="w-full p-3 rounded-lg bg-gray-700 text-white border border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        />
-                        <input
-                            type="password"
-                            placeholder="Heslo"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full p-3 rounded-lg bg-gray-700 text-white border border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        />
+                        <div>
+                            <input
+                                type="text"
+                                placeholder="Uživatelské jméno"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <input
+                                type="password"
+                                placeholder="Heslo"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                            />
+                        </div>
                         <button
                             onClick={isRegistering ? handleRegister : handleLogin}
-                            className="w-full p-3 rounded-lg cta-button"
+                            className="cta-button"
                         >
-                            {isRegistering ? "Zaregistrovat se" : "Přihlásit se"}
+                            {isRegistering ? "✅ Zaregistrovat se" : "✅ Přihlásit se"}
                         </button>
                         {error && <p className="error-message">{error}</p>}
                         <button
@@ -465,9 +636,10 @@ function App() {
                         </button>
                         <button
                             onClick={() => setShowLogin(false)}
-                            className="w-full p-3 rounded-lg bg-gray-500 text-white hover:bg-gray-600 transition duration-300"
+                            className="cta-button"
+                            style={{ backgroundColor: '#999', backgroundImage: 'none' }}
                         >
-                            Zrušit
+                            ❌ Zrušit
                         </button>
                     </div>
                 </div>
