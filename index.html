@@ -1,30 +1,62 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Blender Mastery Academy</title>
-    
-    <!-- React -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-    
-    <!-- Tailwind -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- FIREBASE - MUSÍ BÝT PŘED firebase-config.js! -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js"></script>
-    
-    <!-- CSS -->
-    <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8">
+  <title>F/A-18 UFC – kompaktní finále</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* map iframe styling */
+    .map-container{width:100%;height:320px;border-radius:6px;overflow:hidden;border:1px solid rgba(0,255,120,0.06);margin-top:8px}
+    .map-container iframe{width:100%;height:100%;border:0;display:block}
+    @media (max-width:700px){ .map-container{height:220px} }
+  </style>
 </head>
 <body>
-    <div id="root"></div>
-    
-    <!-- POŘADÍ JE DŮLEŽITÉ! -->
-    <script src="firebase-config.js"></script>
-    <script src="script3.js" type="text/babel"></script>
+
+<div id="panel" class="box">
+  <h1>F/A-18 UFC</h1>
+
+  <div class="row">
+    <div class="knob" id="hdg">HDG<br><span id="hdgv">000</span>°</div>
+    <div style="flex:1"></div>
+    <div class="knob" id="crs">CRS<br><span id="crsv">000</span>°</div>
+  </div>
+
+  <div class="display" id="disp">----------</div>
+
+  <div class="row"><div class="btn">1</div><div class="btn">2</div><div class="btn">3</div></div>
+  <div class="row"><div class="btn">4</div><div class="btn">5</div><div class="btn">6</div></div>
+  <div class="row"><div class="btn">7</div><div class="btn">8</div><div class="btn">9</div></div>
+  <div class="row"><div class="btn small">CLR</div><div class="btn">0</div><div class="btn small">ENT</div></div>
+
+  <div class="row" style="margin-top:12px">
+    <div class="btn small">A/P</div><div class="btn small">IFF</div><div class="btn small">TCN</div><div class="btn small">ILS</div>
+    <div class="btn small">D/L</div><div class="btn small">BCN</div><div class="btn small">ON/OFF</div>
+  </div>
+</div>
+
+<div id="log" class="box">
+  <b>Log</b><br><br>
+  <div id="out">Panel připraven<br></div>
+  <hr style="border-color:#0f0;margin:8px 0">
+  <input id="ws" value="ws://127.0.0.1:3000" style="width:100%;padding:6px;background:#000;color:#0f0;border:1px solid #0f0"><br>
+  <button id="connect" style="width:100%;padding:8px;margin-top:6px">Připojit WS</button>
+  
+  <hr style="border-color:#0f0;margin:8px 0">
+  <b>Mapa (web)</b><br>
+
+  <!-- replaced file-upload + canvas with embedded DCS web viewer -->
+  <div id="mapContainer" class="map-container">
+    <iframe id="mapFrame"
+      src="https://dcs-web-editor.github.io/dcs-web-viewer-deploy/"
+      title="DCS Web Viewer"
+      loading="lazy"
+      referrerpolicy="no-referrer"
+      sandbox="allow-scripts allow-same-origin allow-forms allow-popups">
+    </iframe>
+  </div>
+</div>
+
+<script src="script.js"></script>
 </body>
 </html>
