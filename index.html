@@ -1,62 +1,259 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-  <meta charset="utf-8">
-  <title>F/A-18 UFC – kompaktní finále</title>
-  <link rel="stylesheet" href="style.css">
-  <style>
-    /* map iframe styling */
-    .map-container{width:100%;height:320px;border-radius:6px;overflow:hidden;border:1px solid rgba(0,255,120,0.06);margin-top:8px}
-    .map-container iframe{width:100%;height:100%;border:0;display:block}
-    @media (max-width:700px){ .map-container{height:220px} }
-  </style>
+<meta charset="utf-8">
+<title>F/A-18 UFC – kompletní funkční verze</title>
+<style>
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  background:#000; color:#0f0; font-family:"Courier New",monospace;
+  display:flex; height:100vh; overflow:hidden; padding:8px; gap:12px;
+}
+.box {
+  background:#000; border:2px solid #0f0; border-radius:10px; padding:14px;
+  box-shadow:0 0 20px #0f03; display:flex; flex-direction:column;
+}
+#panel   { flex:2; min-width:320px; max-width:720px; align-items:center; }
+#log     { flex:1.8; min-width:360px; font-size:13px; }
+.display {
+  width:80%; max-width:520px; height:58px; background:linear-gradient(#002200,#001100);
+  border:3px solid #0f0; margin:14px auto; font-size:36px; line-height:58px;
+  text-align:center; letter-spacing:4px; border-radius:7px;
+  box-shadow:0 0 18px rgba(0,255,0,0.06), inset 0 -6px 18px rgba(0,0,0,0.3);
+}
+.knob {
+  width:78px; height:78px; background:linear-gradient(#003300,#001a00);
+  border:4px solid #47ff47; border-radius:50%; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; cursor:pointer; user-select:none;
+  box-shadow:0 0 20px rgba(0,255,0,0.12), inset 0 -10px 18px rgba(0,0,0,0.5);
+}
+.knob:hover { box-shadow:0 0 28px rgba(0,255,0,0.18); transform:scale(1.04); }
+.keypad {
+  display:grid; grid-template-columns:repeat(3,84px); grid-auto-rows:56px;
+  gap:8px; justify-content:center; margin:16px auto; padding:12px;
+  background:linear-gradient(#001a00,#001000); border:3px solid #0f0; border-radius:8px;
+}
+.key {
+  display:flex; align-items:center; justify-content:center;
+  background:#002200; color:#bfffbf; border:2px solid rgba(15,255,15,0.12);
+  border-radius:6px; font-weight:700; font-size:20px; cursor:pointer; user-select:none;
+  box-shadow:0 3px 10px rgba(0,0,0,0.5), inset 0 -3px 8px rgba(0,0,0,0.6);
+  transition:transform .08s, background .08s;
+}
+.key:hover { transform:translateY(-2px); }
+.key:active, .key.active {
+  transform:translateY(2px); background:#0f3; box-shadow:inset 0 3px 8px rgba(0,0,0,0.6);
+}
+.key-clr { background:#2a1000; color:#ffddcc; }
+.key-ent { background:#0f3; color:#000; }
+.btn.small {
+  width:84px; height:40px; background:#002200; color:#bfffbf;
+  border:2px solid rgba(15,255,15,0.18); border-radius:6px;
+  display:flex; align-items:center; justify-content:center; font-size:13px;
+  cursor:pointer; transition:transform .08s;
+}
+.btn.small:hover { transform:translateY(-2px); }
+.btn.small.pressed, .btn.small:active {
+  transform:translateY(2px); background:#0f3; color:#000;
+}
+.log-messages {
+  max-height:260px; overflow-y:auto; padding-right:6px; margin-bottom:8px;
+  border:1px dashed rgba(15,255,15,0.06); font-family:monospace; font-size:12px;
+}
+.log-line { margin:2px 0; }
+.log-time { opacity:0.7; }
+.log-type { font-weight:bold; }
+.map-container { width:100%; height:320px; margin-top:8px; border-radius:6px; overflow:hidden; }
+.map-container iframe { width:100%; height:100%; border:0; }
+#connect { width:100%; padding:8px; margin-top:6px; }
+#connect.connected { background:#003300; }
+@media (max-width:900px) {
+  body { flex-direction:column; }
+  .map-container { height:200px; }
+  .display { font-size:30px; height:52px; line-height:52px; }
+}
+</style>
 </head>
 <body>
 
 <div id="panel" class="box">
   <h1>F/A-18 UFC</h1>
 
-  <div class="row">
+  <div style="display:flex; gap:40px; margin:10px 0">
     <div class="knob" id="hdg">HDG<br><span id="hdgv">000</span>°</div>
-    <div style="flex:1"></div>
     <div class="knob" id="crs">CRS<br><span id="crsv">000</span>°</div>
   </div>
 
   <div class="display" id="disp">----------</div>
 
-  <div class="row"><div class="btn">1</div><div class="btn">2</div><div class="btn">3</div></div>
-  <div class="row"><div class="btn">4</div><div class="btn">5</div><div class="btn">6</div></div>
-  <div class="row"><div class="btn">7</div><div class="btn">8</div><div class="btn">9</div></div>
-  <div class="row"><div class="btn small">CLR</div><div class="btn">0</div><div class="btn small">ENT</div></div>
+  <div class="keypad">
+    <div class="key">1</div><div class="key">2</div><div class="key">3</div>
+    <div class="key">4</div><div class="key">5</div><div class="key">6</div>
+    <div class="key">7</div><div class="key">8</div><div class="key">9</div>
+    <div class="key key-clr">CLR</div><div class="key">0</div><div class="key key-ent">ENT</div>
+  </div>
 
-  <div class="row" style="margin-top:12px">
-    <div class="btn small">A/P</div><div class="btn small">IFF</div><div class="btn small">TCN</div><div class="btn small">ILS</div>
-    <div class="btn small">D/L</div><div class="btn small">BCN</div><div class="btn small">ON/OFF</div>
+  <div style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:10px">
+    <div class="btn small">A/P</div>
+    <div class="btn small">IFF</div>
+    <div class="btn small">TCN</div>
+    <div class="btn small">ILS</div>
+    <div class="btn small">D/L</div>
+    <div class="btn small">BCN</div>
+    <div class="btn small">ON/OFF</div>
   </div>
 </div>
 
 <div id="log" class="box">
-  <b>Log</b><br><br>
-  <div id="out">Panel připraven<br></div>
-  <hr style="border-color:#0f0;margin:8px 0">
-  <input id="ws" value="ws://127.0.0.1:3000" style="width:100%;padding:6px;background:#000;color:#0f0;border:1px solid #0f0"><br>
-  <button id="connect" style="width:100%;padding:8px;margin-top:6px">Připojit WS</button>
-  
-  <hr style="border-color:#0f0;margin:8px 0">
-  <b>Mapa (web)</b><br>
+  <b>Log</b>
+  <div class="log-messages" id="out"></div>
 
-  <!-- replaced file-upload + canvas with embedded DCS web viewer -->
-  <div id="mapContainer" class="map-container">
-    <iframe id="mapFrame"
-      src="https://dcs-web-editor.github.io/dcs-web-viewer-deploy/"
-      title="DCS Web Viewer"
-      loading="lazy"
-      referrerpolicy="no-referrer"
-      sandbox="allow-scripts allow-same-origin allow-forms allow-popups">
-    </iframe>
+  <input id="ws" value="ws://127.0.0.1:3000" style="width:100%;padding:6px;background:#000;color:#0f0;border:1px solid #0f0">
+  <button id="connect">Připojit WS</button>
+  <button id="clearLog" style="margin-top:4px;width:100%;padding:6px">Vyčistit log</button>
+
+  <hr style="border-color:#0f0;margin:10px 0">
+  <b>Mapa</b>
+  <div class="map-container">
+    <iframe src="https://dcs-web-editor.github.io/dcs-web-viewer-deploy/" loading="lazy"></iframe>
   </div>
 </div>
 
-<script src="script.js"></script>
+<script>
+// === GLOBAL ===
+const disp = document.getElementById('disp');
+const out = document.getElementById('out');
+const outContainer = out.parentNode;
+let buffer = '';
+let ws = null;
+const _pendingTimeouts = new Set();
+
+// === UTIL ===
+function nowTime() {
+  return new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function log(message, opts={}) {
+  const type = opts.type || 'INFO';
+  const persist = !!opts.persist;
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="log-time">[${nowTime()}]</span> <span class="log-type">[${type}]</span> ${escapeHtml(String(message))}`;
+  out.appendChild(line);
+  outContainer.scrollTop = outContainer.scrollHeight;
+
+  if (!persist) {
+    const tid = setTimeout(() => {
+      if (line.parentNode) line.remove();
+      _pendingTimeouts.delete(tid);
+    }, 5000);
+    _pendingTimeouts.add(tid);
+  }
+}
+
+// === CLEAR LOG ===
+document.getElementById('clearLog').addEventListener('click', () => {
+  _pendingTimeouts.forEach(clearTimeout);
+  _pendingTimeouts.clear();
+  out.innerHTML = '';
+  log('Log vyčištěn', {type:'INFO', persist:true});
+});
+
+// === KEYPAD ===
+document.querySelectorAll('.key').forEach(k => {
+  k.addEventListener('click', () => {
+    const v = k.textContent.trim();
+    k.classList.add('active');
+    setTimeout(() => k.classList.remove('active'), 120);
+    log(`Tlačítko: ${v}`, {type:'UI'});
+
+    if (v === 'CLR') {
+      buffer = '';
+      disp.textContent = '----------';
+    } else if (v === 'ENT') {
+      log(`ENTER → "${buffer}"`, {type:'UI'});
+      ws?.readyState === 1 && ws.send(JSON.stringify({type:'enter', value:buffer}));
+      buffer = '';
+      disp.textContent = '----------';
+    } else if (/^[0-9]$/.test(v)) {
+      buffer += v;
+      disp.textContent = buffer.padEnd(10,'-').substring(0,10);
+    } else {
+      ws?.readyState === 1 && ws.send(JSON.stringify({type:'button', name:v}));
+    }
+  });
+});
+
+// === MALÁ TLAČÍTKA ===
+document.querySelectorAll('.btn.small').forEach(b => {
+  b.addEventListener('click', () => {
+    b.classList.add('pressed');
+    setTimeout(() => b.classList.remove('pressed'), 140);
+    const name = b.textContent.trim();
+    log(`Panel: ${name}`, {type:'UI'});
+    ws?.readyState === 1 && ws.send(JSON.stringify({type:'button', name}));
+  });
+});
+
+// === KNOBS (kolečko myši) ===
+function makeKnob(el, spanId, name) {
+  let val = 0;
+  const span = document.getElementById(spanId);
+  el.addEventListener('wheel', e => {
+    e.preventDefault();
+    val = (val + (e.deltaY > 0 ? 10 : -10) + 360) % 360;
+    span.textContent = String(val).padStart(3,'0');
+    log(`${name} → ${val}°`, {type:'UI'});
+    ws?.readyState === 1 && ws.send(JSON.stringify({type:'knob', name:name.toLowerCase(), value:val}));
+  });
+}
+makeKnob(document.getElementById('hdg'), 'hdgv', 'HDG');
+makeKnob(document.getElementById('crs'), 'crsv', 'CRS');
+
+// === WEBSOCKET ===
+function updateConnectButton(connected) {
+  const btn = document.getElementById('connect');
+  btn.textContent = connected ? 'Odpojit' : 'Připojit';
+  btn.classList.toggle('connected', connected);
+}
+
+document.getElementById('connect').onclick = () => {
+  if (ws && (ws.readyState === 1 || ws.readyState === 0)) {
+    ws.close();
+    return;
+  }
+  let url = document.getElementById('ws').value.trim();
+  if (!url) url = 'ws://127.0.0.1:3000';
+
+  try {
+    ws = new WebSocket(url);
+    updateConnectButton(true);
+  } catch(e) {
+    log('Chyba WS: '+e.message, {type:'ERR', persist:true});
+    updateConnectButton(false);
+    return;
+  }
+
+  ws.onopen = () => log(`WS připojen: ${url}`, {type:'WS', persist:true});
+  ws.onmessage = e => {
+    log(`DCS → ${e.data}`, {type:'WS'});
+    try {
+      const j = JSON.parse(e.data);
+      if (j.type) log(`→ ${j.type}: ${JSON.stringify(j)}`, {type:'WS'});
+    } catch{}
+  };
+  ws.onclose = () => {
+    log('WS odpojen', {type:'WS'});
+    ws = null;
+    updateConnectButton(false);
+  };
+  ws.onerror = () => log('WS error', {type:'ERR', persist:true});
+};
+
+// === START ===
+log('Panel připraven', {type:'INFO', persist:true});
+</script>
 </body>
 </html>
